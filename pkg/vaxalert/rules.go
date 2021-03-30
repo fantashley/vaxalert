@@ -93,7 +93,7 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) ApptMap {
 
 func (a AlertRule) getDistance(coords []float64) int {
 	pointA := s2.LatLngFromDegrees(a.Latitude, a.Longitude)
-	pointB := s2.LatLngFromDegrees(coords[0], coords[1])
+	pointB := s2.LatLngFromDegrees(coords[1], coords[0])
 	distance := pointA.Distance(pointB)
 	return int(distance * EarthRadiusMiles)
 }

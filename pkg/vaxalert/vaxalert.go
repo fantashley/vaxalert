@@ -16,17 +16,17 @@ type VaxAlert struct {
 	knownAppts ApptMap
 }
 
-func NewVaxAlert(c Config) (VaxAlert, error) {
+func NewVaxAlert(c Config) (*VaxAlert, error) {
 	if err := c.Validate(); err != nil {
-		return VaxAlert{}, fmt.Errorf("config failed validation: %w", err)
+		return nil, fmt.Errorf("config failed validation: %w", err)
 	}
-	return VaxAlert{
+	return &VaxAlert{
 		c:          c,
 		knownAppts: make(ApptMap),
 	}, nil
 }
 
-func (v VaxAlert) Start(ctx context.Context) error {
+func (v *VaxAlert) Start(ctx context.Context) error {
 	pollTicker := time.NewTicker(v.c.PollInterval)
 	defer pollTicker.Stop()
 
@@ -43,7 +43,7 @@ func (v VaxAlert) Start(ctx context.Context) error {
 	}
 }
 
-func (v VaxAlert) poll() ApptMap {
+func (v *VaxAlert) poll() ApptMap {
 	var locations []vaxspotter.Location
 	for _, state := range v.c.StateCodes {
 		locs, err := v.c.VaxClient.GetLocations(state)
@@ -57,7 +57,8 @@ func (v VaxAlert) poll() ApptMap {
 	currentAppts := make(ApptMap)
 	for _, location := range locations {
 		for _, rule := range v.c.Rules {
-			for ident, appt := range rule.FilterAppointments(location) {
+			matchingAppts := rule.FilterAppointments(location)
+			for ident, appt := range matchingAppts {
 				currentAppts[ident] = appt
 			}
 		}
@@ -75,9 +76,13 @@ func (v VaxAlert) poll() ApptMap {
 	return newAppts
 }
 
-func (v VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap) error {
+func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap) error {
+	newCount := len(newAppts)
+	if newCount == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("%d new appointments found!", newCount)
 	var alertErr error
-	msg := fmt.Sprintf("%d new appointments found!", len(newAppts))
 	for _, alerter := range v.c.Alerters {
 		if err := alerter.Alert(ctx, msg); err != nil {
 			alertErr = multierror.Append(alertErr, err)
