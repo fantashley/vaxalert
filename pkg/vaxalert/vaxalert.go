@@ -14,6 +14,7 @@ import (
 type VaxAlert struct {
 	c          Config
 	knownAppts ApptMap
+	knownLocs  LocMap
 }
 
 func NewVaxAlert(c Config) (*VaxAlert, error) {
@@ -23,6 +24,7 @@ func NewVaxAlert(c Config) (*VaxAlert, error) {
 	return &VaxAlert{
 		c:          c,
 		knownAppts: make(ApptMap),
+		knownLocs:  make(LocMap),
 	}, nil
 }
 
@@ -35,15 +37,15 @@ func (v *VaxAlert) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-pollTicker.C:
-			newAppts := v.poll()
-			if err := v.SendAlerts(ctx, newAppts); err != nil {
+			newAppts, newLocs := v.poll()
+			if err := v.SendAlerts(ctx, newAppts, newLocs); err != nil {
 				log.Printf("Error sending alerts: %v", err)
 			}
 		}
 	}
 }
 
-func (v *VaxAlert) poll() ApptMap {
+func (v *VaxAlert) poll() (ApptMap, LocMap) {
 	var locations []vaxspotter.Location
 	for _, state := range v.c.StateCodes {
 		locs, err := v.c.VaxClient.GetLocations(state)
@@ -55,11 +57,15 @@ func (v *VaxAlert) poll() ApptMap {
 	}
 
 	currentAppts := make(ApptMap)
+	currentLocs := make(LocMap)
 	for _, location := range locations {
 		for _, rule := range v.c.Rules {
-			matchingAppts := rule.FilterAppointments(location)
+			matchingAppts, matchingLocs := rule.FilterAppointments(location)
 			for ident, appt := range matchingAppts {
 				currentAppts[ident] = appt
+			}
+			for id, loc := range matchingLocs {
+				currentLocs[id] = loc
 			}
 		}
 	}
@@ -71,13 +77,21 @@ func (v *VaxAlert) poll() ApptMap {
 		}
 	}
 
-	v.knownAppts = currentAppts
+	newLocs := make(LocMap)
+	for id, loc := range currentLocs {
+		if _, ok := v.knownLocs[id]; !ok {
+			newLocs[id] = loc
+		}
+	}
 
-	return newAppts
+	v.knownAppts = currentAppts
+	v.knownLocs = currentLocs
+
+	return newAppts, newLocs
 }
 
-func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap) error {
-	newCount := len(newAppts)
+func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap, newLocs LocMap) error {
+	newCount := len(newAppts) + len(newLocs)
 	if newCount == 0 {
 		return nil
 	}
@@ -92,6 +106,7 @@ func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap) error {
 }
 
 type ApptMap map[ApptIdent]vaxspotter.Appointment
+type LocMap map[int]vaxspotter.Location
 
 type ApptIdent string
 

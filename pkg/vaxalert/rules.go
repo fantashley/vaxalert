@@ -36,24 +36,30 @@ func (a AlertRule) Validate() error {
 	return nil
 }
 
-func (a AlertRule) FilterAppointments(loc vaxspotter.Location) ApptMap {
+func (a AlertRule) FilterAppointments(loc vaxspotter.Location) (ApptMap, LocMap) {
 	matchingAppts := make(ApptMap)
+	matchingLocs := make(LocMap)
 
 	if a.MaxDistanceMiles != 0 {
 		distance := a.getDistance(loc.Geometry.Coordinates)
 		if a.MaxDistanceMiles < distance {
-			return nil
+			return nil, nil
 		}
+	}
+
+	if loc.Properties.AppointmentsAvailable && (len(loc.Properties.Appointments) == 0) {
+		matchingLocs[loc.Properties.ID] = loc
+		return nil, matchingLocs
 	}
 
 	if a.AppointmentType != "" {
 		if _, ok := loc.Properties.AppointmentTypes[a.AppointmentType]; !ok {
-			return nil
+			return nil, nil
 		}
 	}
 	if a.VaccineType != "" {
 		if _, ok := loc.Properties.AppointmentVaccineTypes[a.VaccineType]; !ok {
-			return nil
+			return nil, nil
 		}
 	}
 
@@ -88,7 +94,7 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) ApptMap {
 		matchingAppts[getApptIdent(appt, loc)] = appt
 	}
 
-	return matchingAppts
+	return matchingAppts, nil
 }
 
 func (a AlertRule) getDistance(coords []float64) int {
