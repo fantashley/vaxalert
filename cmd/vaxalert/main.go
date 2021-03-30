@@ -28,7 +28,7 @@ func main() {
 		twilioAccountSid   = fs.String("twilio-account-sid", "", "Twilio account sid for SMS alerting")
 		twilioAuthToken    = fs.String("twilio-auth-token", "", "Twilio auth token for SMS alerting")
 		twilioMessagingSid = fs.String("twilio-msg-sid", "", "Twilio messaging sid")
-		alertNumber        = fs.String("alert-number", "", "number to send SMS alerts to when appointments are found")
+		alertNumbers       = fs.String("alert-numbers", "", "comma-separated numbers to send SMS alerts to when appointments are found")
 
 		apptStartDate = fs.String("appt-start-date", "", "start of date range for searching appointments")
 		apptEndDate   = fs.String("appt-end-date", "", "end of date range for searching appointments")
@@ -50,8 +50,8 @@ func main() {
 		*twilioAccountSid,
 		*twilioAuthToken,
 		*twilioMessagingSid,
-		*alertNumber,
 		&http.Client{},
+		strings.Split(*alertNumbers, ","),
 	)
 
 	var err error

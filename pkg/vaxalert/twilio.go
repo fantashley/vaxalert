@@ -16,37 +16,39 @@ type Alerter interface {
 
 type TwilioAlerter struct {
 	messagingSid string
-	toNumber     string
+	toNumbers    []string
 	client       *twilio.Client
 }
 
 func NewTwilioAlerter(
 	accountSid,
 	authToken,
-	messagingSid,
-	toNumber string,
+	messagingSid string,
 	httpClient *http.Client,
+	toNumbers []string,
 ) TwilioAlerter {
 	client := twilio.NewClient(accountSid, authToken, httpClient)
 	return TwilioAlerter{
 		messagingSid: messagingSid,
-		toNumber:     toNumber,
+		toNumbers:    toNumbers,
 		client:       client,
 	}
 }
 
 func (a TwilioAlerter) Alert(ctx context.Context, message string) error {
-	data := url.Values{
-		"To":                  {a.toNumber},
-		"MessagingServiceSid": {a.messagingSid},
-		"Body":                {message},
-	}
-	msg, err := a.client.Messages.Create(ctx, data)
-	if err != nil {
-		return fmt.Errorf("failed to create message: %w", err)
-	}
-	if msg == nil {
-		return errors.New("created message is nil")
+	for _, num := range a.toNumbers {
+		data := url.Values{
+			"To":                  {num},
+			"MessagingServiceSid": {a.messagingSid},
+			"Body":                {message},
+		}
+		msg, err := a.client.Messages.Create(ctx, data)
+		if err != nil {
+			return fmt.Errorf("failed to create message: %w", err)
+		}
+		if msg == nil {
+			return errors.New("created message is nil")
+		}
 	}
 
 	return nil
