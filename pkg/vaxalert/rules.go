@@ -36,8 +36,8 @@ func (a AlertRule) Validate() error {
 	return nil
 }
 
-func (a AlertRule) FilterAppointments(loc vaxspotter.Location) map[ApptIdent]vaxspotter.Appointment {
-	matchingAppts := make([]vaxspotter.Appointment, 0, len(loc.Properties.Appointments))
+func (a AlertRule) FilterAppointments(loc vaxspotter.Location) ApptMap {
+	matchingAppts := make(ApptMap)
 
 	if a.MaxDistanceMiles != 0 {
 		distance := a.getDistance(loc.Geometry.Coordinates)
@@ -85,7 +85,7 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) map[ApptIdent]vax
 		if !a.evaluateTime(appt.Time) {
 			continue
 		}
-		matchingAppts = append(matchingAppts, appt)
+		matchingAppts[getApptIdent(appt, loc)] = appt
 	}
 
 	return matchingAppts

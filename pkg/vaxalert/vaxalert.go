@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/fantashley/vaxalert/pkg/vaxspotter"
+	"github.com/hashicorp/go-multierror"
 )
 
 type VaxAlert struct {
 	c          Config
-	knownAppts map[ApptIdent]vaxspotter.Appointment
+	knownAppts ApptMap
 }
-
-type ApptIdent string
 
 func NewVaxAlert(c Config) (VaxAlert, error) {
 	if err := c.Validate(); err != nil {
@@ -22,7 +22,7 @@ func NewVaxAlert(c Config) (VaxAlert, error) {
 	}
 	return VaxAlert{
 		c:          c,
-		knownAppts: make(map[ApptIdent]vaxspotter.Appointment),
+		knownAppts: make(ApptMap),
 	}, nil
 }
 
@@ -35,12 +35,15 @@ func (v VaxAlert) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-pollTicker.C:
-
+			newAppts := v.poll()
+			if err := v.SendAlerts(ctx, newAppts); err != nil {
+				log.Printf("Error sending alerts: %v", err)
+			}
 		}
 	}
 }
 
-func (v VaxAlert) poll() {
+func (v VaxAlert) poll() ApptMap {
 	var locations []vaxspotter.Location
 	for _, state := range v.c.StateCodes {
 		locs, err := v.c.VaxClient.GetLocations(state)
@@ -51,13 +54,42 @@ func (v VaxAlert) poll() {
 		locations = append(locations, locs.Locations...)
 	}
 
-	var currentAppts []vaxspotter.Appointment
+	currentAppts := make(ApptMap)
 	for _, location := range locations {
 		for _, rule := range v.c.Rules {
-			currentAppts = append(currentAppts, rule.FilterAppointments(location)...)
+			for ident, appt := range rule.FilterAppointments(location) {
+				currentAppts[ident] = appt
+			}
 		}
 	}
 
+	newAppts := make(ApptMap)
+	for ident, appt := range currentAppts {
+		if _, ok := v.knownAppts[ident]; !ok {
+			newAppts[ident] = appt
+		}
+	}
+
+	v.knownAppts = currentAppts
+
+	return newAppts
 }
 
-func (v VaxAlert) newAppointments(currentAppts []vaxspotter.Appointment)
+func (v VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap) error {
+	var alertErr error
+	msg := fmt.Sprintf("%d new appointments found!", len(newAppts))
+	for _, alerter := range v.c.Alerters {
+		if err := alerter.Alert(ctx, msg); err != nil {
+			alertErr = multierror.Append(alertErr, err)
+		}
+	}
+	return alertErr
+}
+
+type ApptMap map[ApptIdent]vaxspotter.Appointment
+
+type ApptIdent string
+
+func getApptIdent(appt vaxspotter.Appointment, loc vaxspotter.Location) ApptIdent {
+	return ApptIdent(appt.Time.String() + strconv.Itoa(loc.Properties.ID))
+}

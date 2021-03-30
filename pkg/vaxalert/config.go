@@ -13,6 +13,7 @@ type Config struct {
 	PollInterval time.Duration
 	Rules        []AlertRule
 	StateCodes   []string
+	Alerters     []Alerter
 }
 
 func (c Config) Validate() error {
@@ -28,6 +29,9 @@ func (c Config) Validate() error {
 		if len(code) != 2 {
 			return fmt.Errorf("invalid state code %q", code)
 		}
+	}
+	if len(c.Alerters) == 0 {
+		return errors.New("no alerters defined")
 	}
 
 	return nil
