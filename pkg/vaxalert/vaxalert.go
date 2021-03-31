@@ -111,7 +111,7 @@ func formatMessage(newLocs map[int]int, allLocs LocMap) string {
 		} else {
 			sb.WriteString(fmt.Sprintf("%d new appointments: ", apptCount))
 		}
-		sb.WriteString(locObj.Properties.URL)
+		sb.WriteString(locObj.Properties.URL + "\n")
 	}
 	return sb.String()
 }
