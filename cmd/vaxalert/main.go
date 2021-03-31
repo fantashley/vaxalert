@@ -23,7 +23,7 @@ func main() {
 		_            = fs.String("config", "", "config file (optional)")
 		apiURL       = fs.String("api-url", "https://www.vaccinespotter.org/", "API URL of vaccine spotter")
 		pollInterval = fs.Duration("poll-interval", 5*time.Minute, "new appointment polling frequency")
-		stateCodes   = fs.String("state-codes", "", "comma-separated list of state codes")
+		stateCodes   = fs.String("state-codes", "", "comma-separated list of state codes to search in")
 
 		twilioAccountSid   = fs.String("twilio-account-sid", "", "Twilio account sid for SMS alerting")
 		twilioAuthToken    = fs.String("twilio-auth-token", "", "Twilio auth token for SMS alerting")
@@ -37,7 +37,7 @@ func main() {
 		maxDistance   = fs.Int("max-distance", 0, "maximum distance in miles from coordinates to search for appointments")
 
 		secondDoseOnly = fs.Bool("second-dose", false, "only search for appointments for second dose")
-		vaccineType    = fs.String("vaccine-type", "", "type of vaccine to search for in appointments")
+		vaccineType    = fs.String("vaccine-type", "", "(not required) type of vaccine to search for in appointments")
 	)
 
 	ff.Parse(fs, os.Args[1:],
