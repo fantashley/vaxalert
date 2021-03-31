@@ -1,5 +1,11 @@
 # VaxAlert
 
+VaxAlert is a tool for notifying of new COVID-19 vaccine appointments within a
+given date range and distance. It uses the API provided by the wonderful
+[COVID-19 Vaccine Spotter](https://www.vaccinespotter.org/) website. The
+notifications happen over SMS via Twilio, so a Twilio account is required. You
+can get a free trial with them for two weeks!
+
 ## Thorough Instructions
 
 ### Installation
