@@ -30,6 +30,7 @@ func (v *VaxAlert) Start(ctx context.Context) error {
 	pollTicker := time.NewTicker(v.c.PollInterval)
 	defer pollTicker.Stop()
 
+	v.poll() // don't alert on startup
 	for {
 		select {
 		case <-ctx.Done():
@@ -97,15 +98,20 @@ func formatMessage(newLocs map[int]int, allLocs LocMap) string {
 	var sb strings.Builder
 	for locID, apptCount := range newLocs {
 		locObj := allLocs[locID]
-		msg := fmt.Sprintf("%s in %s, %s %s has %d new appointments: %s\n",
+		sb.WriteString(fmt.Sprintf("%s in %s, %s %s has ",
 			locObj.Properties.ProviderBrandName,
 			locObj.Properties.City,
 			locObj.Properties.State,
 			locObj.Properties.PostalCode,
-			apptCount,
-			locObj.Properties.URL,
-		)
-		sb.WriteString(msg)
+		))
+		if apptCount == AppointmentsUnknown {
+			sb.WriteString("an undisclosed number of new appointments on their website: ")
+		} else if apptCount == 1 {
+			sb.WriteString(fmt.Sprintf("%d new appointment: ", apptCount))
+		} else {
+			sb.WriteString(fmt.Sprintf("%d new appointments: ", apptCount))
+		}
+		sb.WriteString(locObj.Properties.URL)
 	}
 	return sb.String()
 }
