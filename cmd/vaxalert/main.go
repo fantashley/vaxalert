@@ -70,6 +70,7 @@ func main() {
 		if err != nil {
 			log.Panicf("Failed to parse end time: %v", err)
 		}
+		endTime = endTime.Add(24 * time.Hour) // inclusive of end day
 	}
 
 	var apptType vaxspotter.AppointmentType
