@@ -9,6 +9,7 @@ import (
 )
 
 const EarthRadiusMiles = 3958.8
+const AppointmentsUnknown = -1
 
 type AlertRule struct {
 	StartDate        time.Time
@@ -36,33 +37,30 @@ func (a AlertRule) Validate() error {
 	return nil
 }
 
-func (a AlertRule) FilterAppointments(loc vaxspotter.Location) (ApptMap, LocMap) {
-	matchingAppts := make(ApptMap)
-	matchingLocs := make(LocMap)
-
+func (a AlertRule) FilterAppointments(loc vaxspotter.Location) int {
 	if a.MaxDistanceMiles != 0 {
 		distance := a.getDistance(loc.Geometry.Coordinates)
 		if a.MaxDistanceMiles < distance {
-			return nil, nil
+			return 0
 		}
 	}
 
 	if loc.Properties.AppointmentsAvailable && (len(loc.Properties.Appointments) == 0) {
-		matchingLocs[loc.Properties.ID] = loc
-		return nil, matchingLocs
+		return AppointmentsUnknown
 	}
 
 	if a.AppointmentType != "" {
 		if _, ok := loc.Properties.AppointmentTypes[a.AppointmentType]; !ok {
-			return nil, nil
+			return 0
 		}
 	}
 	if a.VaccineType != "" {
 		if _, ok := loc.Properties.AppointmentVaccineTypes[a.VaccineType]; !ok {
-			return nil, nil
+			return 0
 		}
 	}
 
+	apptCount := 0
 	for _, appt := range loc.Properties.Appointments {
 		if a.AppointmentType != "" {
 			found := false
@@ -91,10 +89,10 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) (ApptMap, LocMap)
 		if !a.evaluateTime(appt.Time) {
 			continue
 		}
-		matchingAppts[getApptIdent(appt, loc)] = appt
+		apptCount++
 	}
 
-	return matchingAppts, nil
+	return apptCount
 }
 
 func (a AlertRule) getDistance(coords []float64) int {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fantashley/vaxalert/pkg/vaxspotter"
@@ -12,9 +12,8 @@ import (
 )
 
 type VaxAlert struct {
-	c          Config
-	knownAppts ApptMap
-	knownLocs  LocMap
+	c         Config
+	knownLocs map[int]int
 }
 
 func NewVaxAlert(c Config) (*VaxAlert, error) {
@@ -22,9 +21,8 @@ func NewVaxAlert(c Config) (*VaxAlert, error) {
 		return nil, fmt.Errorf("config failed validation: %w", err)
 	}
 	return &VaxAlert{
-		c:          c,
-		knownAppts: make(ApptMap),
-		knownLocs:  make(LocMap),
+		c:         c,
+		knownLocs: make(map[int]int),
 	}, nil
 }
 
@@ -37,65 +35,55 @@ func (v *VaxAlert) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-pollTicker.C:
-			newAppts, newLocs := v.poll()
-			if err := v.SendAlerts(ctx, newAppts, newLocs); err != nil {
+			newLocs, allLocs := v.poll()
+			if err := v.SendAlerts(ctx, newLocs, allLocs); err != nil {
 				log.Printf("Error sending alerts: %v", err)
 			}
 		}
 	}
 }
 
-func (v *VaxAlert) poll() (ApptMap, LocMap) {
-	var locations []vaxspotter.Location
+func (v *VaxAlert) poll() (map[int]int, LocMap) {
+	locations := make(LocMap)
 	for _, state := range v.c.StateCodes {
 		locs, err := v.c.VaxClient.GetLocations(state)
 		if err != nil {
 			log.Printf("failed to get locations in %s: %v", state, err)
 			continue
 		}
-		locations = append(locations, locs.Locations...)
+		for _, loc := range locs.Locations {
+			locations[loc.Properties.ID] = loc
+		}
 	}
 
-	currentAppts := make(ApptMap)
-	currentLocs := make(LocMap)
+	currentLocs := make(map[int]int)
 	for _, location := range locations {
 		for _, rule := range v.c.Rules {
-			matchingAppts, matchingLocs := rule.FilterAppointments(location)
-			for ident, appt := range matchingAppts {
-				currentAppts[ident] = appt
-			}
-			for id, loc := range matchingLocs {
-				currentLocs[id] = loc
+			apptCount := rule.FilterAppointments(location)
+			if apptCount != 0 {
+				currentLocs[location.Properties.ID] = apptCount
 			}
 		}
 	}
 
-	newAppts := make(ApptMap)
-	for ident, appt := range currentAppts {
-		if _, ok := v.knownAppts[ident]; !ok {
-			newAppts[ident] = appt
-		}
-	}
-
-	newLocs := make(LocMap)
-	for id, loc := range currentLocs {
+	newLocs := make(map[int]int)
+	for id, count := range currentLocs {
 		if _, ok := v.knownLocs[id]; !ok {
-			newLocs[id] = loc
+			newLocs[id] = count
 		}
 	}
 
-	v.knownAppts = currentAppts
 	v.knownLocs = currentLocs
 
-	return newAppts, newLocs
+	return newLocs, locations
 }
 
-func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap, newLocs LocMap) error {
-	newCount := len(newAppts) + len(newLocs)
+func (v *VaxAlert) SendAlerts(ctx context.Context, newLocs map[int]int, allLocs LocMap) error {
+	newCount := len(newLocs)
 	if newCount == 0 {
 		return nil
 	}
-	msg := fmt.Sprintf("%d new appointments found!", newCount)
+	msg := formatMessage(newLocs, allLocs)
 	var alertErr error
 	for _, alerter := range v.c.Alerters {
 		if err := alerter.Alert(ctx, msg); err != nil {
@@ -105,11 +93,21 @@ func (v *VaxAlert) SendAlerts(ctx context.Context, newAppts ApptMap, newLocs Loc
 	return alertErr
 }
 
-type ApptMap map[ApptIdent]vaxspotter.Appointment
-type LocMap map[int]vaxspotter.Location
-
-type ApptIdent string
-
-func getApptIdent(appt vaxspotter.Appointment, loc vaxspotter.Location) ApptIdent {
-	return ApptIdent(appt.Time.String() + strconv.Itoa(loc.Properties.ID))
+func formatMessage(newLocs map[int]int, allLocs LocMap) string {
+	var sb strings.Builder
+	for locID, apptCount := range newLocs {
+		locObj := allLocs[locID]
+		msg := fmt.Sprintf("%s in %s, %s %s has %d new appointments: %s\n",
+			locObj.Properties.ProviderBrandName,
+			locObj.Properties.City,
+			locObj.Properties.State,
+			locObj.Properties.PostalCode,
+			apptCount,
+			locObj.Properties.URL,
+		)
+		sb.WriteString(msg)
+	}
+	return sb.String()
 }
+
+type LocMap map[int]vaxspotter.Location
