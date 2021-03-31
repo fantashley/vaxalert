@@ -40,7 +40,7 @@ Usage of vaxalert:
   -second-dose
         only search for appointments for second dose
   -state-codes string
-        comma-separated list of state codes
+        comma-separated list of state codes to search in
   -twilio-account-sid string
         Twilio account sid for SMS alerting
   -twilio-auth-token string
@@ -48,7 +48,7 @@ Usage of vaxalert:
   -twilio-msg-sid string
         Twilio messaging sid
   -vaccine-type string
-        type of vaccine to search for in appointments
+        (not required) type of vaccine to search for in appointments
 ```
 
 #### config.json
