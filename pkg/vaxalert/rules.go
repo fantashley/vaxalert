@@ -18,7 +18,7 @@ type AlertRule struct {
 	Longitude        float64
 	MaxDistanceMiles int
 	AppointmentType  vaxspotter.AppointmentType
-	VaccineType      vaxspotter.AppointmentVaccineType
+	VaccineTypes     []vaxspotter.AppointmentVaccineType
 }
 
 func (a AlertRule) Validate() error {
@@ -54,8 +54,15 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) int {
 			return 0
 		}
 	}
-	if a.VaccineType != "" {
-		if _, ok := loc.Properties.AppointmentVaccineTypes[a.VaccineType]; !ok {
+	if len(a.VaccineTypes) > 0 {
+		found := false
+		for _, vType := range a.VaccineTypes {
+			if _, ok := loc.Properties.AppointmentVaccineTypes[vType]; ok {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return 0
 		}
 	}
@@ -74,12 +81,15 @@ func (a AlertRule) FilterAppointments(loc vaxspotter.Location) int {
 				continue
 			}
 		}
-		if a.VaccineType != "" {
+		if len(a.VaccineTypes) > 0 {
 			found := false
+		apptLoop:
 			for _, apptType := range appt.VaccineTypes {
-				if a.VaccineType == apptType {
-					found = true
-					break
+				for _, vType := range a.VaccineTypes {
+					if apptType == vType {
+						found = true
+						break apptLoop
+					}
 				}
 			}
 			if !found {

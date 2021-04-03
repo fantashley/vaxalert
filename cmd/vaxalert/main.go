@@ -37,7 +37,7 @@ func main() {
 		maxDistance   = fs.Int("max-distance", 0, "maximum distance in miles from coordinates to search for appointments")
 
 		secondDoseOnly = fs.Bool("second-dose", false, "only search for appointments for second dose")
-		vaccineType    = fs.String("vaccine-type", "", "(not required) type of vaccine to search for in appointments")
+		vaccineTypes   = fs.String("vaccine-types", "", "(not required) comma-separated types of vaccines to search for in appointments")
 	)
 
 	ff.Parse(fs, os.Args[1:],
@@ -78,6 +78,11 @@ func main() {
 		apptType = vaxspotter.AppointmentTypeSecondDoseOnly
 	}
 
+	var vaxTypes []vaxspotter.AppointmentVaccineType
+	for _, vt := range strings.Split(*vaccineTypes, ",") {
+		vaxTypes = append(vaxTypes, vaxspotter.AppointmentVaccineType(vt))
+	}
+
 	rule := vaxalert.AlertRule{
 		StartDate:        startTime,
 		EndDate:          endTime,
@@ -85,7 +90,7 @@ func main() {
 		Longitude:        *longitude,
 		MaxDistanceMiles: *maxDistance,
 		AppointmentType:  apptType,
-		VaccineType:      vaxspotter.AppointmentVaccineType(*vaccineType),
+		VaccineTypes:     vaxTypes,
 	}
 
 	vaxClient, err := client.NewVaxClientV0(*apiURL, &http.Client{})
